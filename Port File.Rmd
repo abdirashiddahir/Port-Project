@@ -1,0 +1,1270 @@
+---
+title: "Port Project in South Korea"
+author: "Dahir Abdirashid Mohamed"
+date: "2020-09-11"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+  pdf_document:
+         latex_engine: xelatex
+editor_options: 
+  chunk_output_type: console
+---
+
+This first objective of this report is conduct exploratory analysis on a data from the port of Busan to discern how variables relate to each other, and what factors are more dominant than others in influencing the service life of port quay where cargo is discharged, loaded and in some cases stored. In this report, quay is referred to as the land area surrounding the berth where ships are moored, and the cargo is handled. 
+
+install pandoc first
+
+```{r}
+#install.packages(c('rmarkdown','rticles'))
+#rmarkdown::draft("MyCtexArticle.Rmd", template = "ctex", package = "rticles")
+#tinytex::install_tinytex()
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(tidyverse)
+theme_set(theme_light())
+locale("ko")
+```
+
+# **Key data variables**
+
+## **Port function:항만기능**\
+*Berthing/Mooring facilities: 계류시설*\
+*Outer facilities: 외곽시설*\
+*Land facilities (Not the focus of this project): 육상시설*\
+
+## **Port facilities: 시설별**\
+*Guide bank training dyke/levee; jetty: 도류제*\
+*Lighter's wharf; shallow draft quay or included wharf: 물양장*\
+*Breakwater: 방파제*\
+*shed, quay shed; warehouse: 상옥; 창고*\
+*Quay :안벽*\
+*Port terminal: 여객터미널*\
+
+## **Structure type:구조형**\
+*Open type wharf or landing pier (Precast Concrete: 잔교식(PC)*\
+*Reinforced concrete: 잔교식(RC)*\
+*잔교식*\
+*Gravity system & PC: 중력식+잔교식(PC)*\
+*중력식+잔교식*\
+*중력식*\
+*Gravity system (cellular block type) : 중력식(셀룰러블럭식): *\
+*Reinforced (ferro) concrete: 철근콘크리트*\
+*Reinforced concrete: 철근콘크리트조*\
+*Gravity (Caisson): 중력식(케이슨)*\
+*RC/철골*\
+*Steel skeleton: 철골조*\
+*Steel truss: 철골트러스*\
+*Mixed agents caisson: 케이슨식 혼성제*\
+
+## **Berth: 선석**\
+*Year of completion: 준공년도*\
+*Depth of water: 수심*\
+*Adjustment cost by sea area: 해역별조정비*\
+*Cost of adjustment by structure type: 구조형식별조정비*\
+*Tonnage adjustment ratio: 톤수조정비*\
+*Expiration year adjustment cost: 경과년수조정비*\
+*Total adjustment cost: 전체조정비*\
+*Underwater survey area: 수중조사면적*\
+*Number of underwater survey sections: 수중조사구간수*\
+*Diagnostic evaluation year: 진단평가년도*\
+*Number of years for common use: 공용년수*\
+
+
+```{r}
+Busanport <- read.csv("Busanport.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+#Busanport <- read.csv("newbusanportdata.csv", stringsAsFactors = FALSE)
+```
+
+
+```{r}
+sapply(Busanport, class)
+
+```
+
+```{r}
+#options(digits = 10)
+
+#Busanportdata$규모 <- as.numeric(Busanportdata$규모) 
+#Busanportdata$공용년수 <- as.numeric(Busanportdata$공용년수) 
+#Busanportdata$최소상태등급 <- as.numeric(Busanportdata$최소상태등급)
+#Busanportdata$최대상태등급 <- as.numeric(Busanportdata$최대상태등급)
+#Busanportdata$평균상태등급 <- as.numeric(Busanportdata$평균상태등급)
+Busanport$평균상태등급 <- as.numeric(Busanport$평균상태등급)
+Busanport$공용년수 <- as.numeric(Busanport$공용년수) 
+Busanport$규모 <- as.numeric(Busanport$규모)
+Busanport$연장 <- as.numeric(Busanport$연장)
+sapply(Busanport, class)
+Busanportdata <- dplyr:: mutate_if(Busanport, is.character, as.factor)
+```
+
+```{r}
+sapply(Busanportdata, class)
+#view(Busanportdata)
+```
+
+
+
+
+```{r}
+knitr::kable(
+  Busanportdata[1:10,1:8], 
+  caption = "데이터"
+)
+```
+
+
+```{r}
+busan_port_alphabetical <- Busanportdata %>%
+  select(sort(colnames(Busanport)))
+```
+
+```{r}
+head(busan_port_alphabetical)
+head(Busanportdata)
+```
+
+# **Exploratory data analysis**
+
+## **Data query**
+
+```{r}
+str(Busanportdata$시설명)
+str(Busanportdata$종별)
+str(Busanportdata$항만기능별)
+str(Busanportdata$시설별)
+str(Busanportdata$선석)
+ncol(Busanportdata)
+length(Busanportdata)
+dim(Busanportdata)
+nrow(Busanportdata)
+```
+
+## **Date formats**
+
+By using 'lubridate' package, this section shows how to work with dates
+
+```{r}
+library(zoo)
+Busanportdata$준공날짜<- as.yearmon(Busanport$준공날짜, "%Y-%m")
+as.Date(Busanportdata$준공날짜)
+sapply(Busanportdata, class)
+```
+
+## **Dealing with missing data**
+
+Modeling regression in R requires that cases of data are complete. In cases where there is at least one NA, they are excluded. However,a  number of techniques has been designed to handle missing data. Among these techniques are the use of complete cases (complete.cases or na.omit functions), but this approach is likely to be biased for a substantial amount of data will be lost; Remove predictors with many missing data (this is useful in case most of the missing data is concentrated in one predictor); and the other technique is the imputation for the missing values to replace the missing observations on the predictor with artificial values that try to preserve the dataset structure. 
+
+When the response is missing, we can use a predictive model to predict the missing response, then create a new fully-observed dataset containing the predictions instead of the missing values, and finally re-estimate the predictive model in this expanded dataset. This approach is attractive if most of the missing data is in the response.
+
+
+When different predictors and the response are missing, we can use a direct imputation for them. The simplest approach is to replace the missing data with the sample mean of the observed cases (in the case of quantitative variables). This and more sophisticated imputation methods, based on predictive models, are available within the mice package. This approach is interesting if the data contains many NAs scattered in different predictors (hence a complete-cases analysis will be inefficient).
+
+```{r}
+keydatavariables <- Busanportdata %>%
+  dplyr::select(규모, 연장,수심, 해역별조정비, 구조형식별조정비, 톤수조정비, 경과년수조정비, 전체조정비,
+           수중조사면적, 수중조사구간수, 최소상태등급, 최대상태등급, 평균상태등급)
+```
+
+```{r}
+summary(Busanportdata)
+sapply(Busanportdata, class)
+
+#it is safer to exclude NA's explicitly before fitting of a model
+
+#busanportdatanoNA <- na.exclude(Busanportdata)
+#summary(busanportdatanoNA)
+
+```
+
+```{r}
+#library(equatiomatic)
+#fit <- lm(mpg ~ cyl + disp, mtcars)
+# show the theoretical model
+#equatiomatic::extract_eq(fit)
+```
+
+
+
+```{r}
+#you delete variables (columns) that contain too many missing values.
+
+pctmiss <- colSums(is.na(Busanportdata))/nrow(Busanportdata)
+round(pctmiss, 2)
+
+#Listwise deletion involves deleting observations (rows) that contain missing values
+
+newbusanportdata <- na.omit(Busanportdata)
+
+###Idenfity missing values 
+
+#is.na(Busanportdata)
+#which(is.na(Busanportdata))
+#apply(is.na(Busanportdata), 2, which)
+```
+
+The package VIM has a function to visualize where the missing data is present. It gives the percentage of NA's for each variable and for the most important combinations of NA's.
+
+```{r}
+library(VIM)
+#Imputation
+#Imputation involves replacing missing values with ?占쏙옙reasonable?占??? guesses 
+Busanportdata1 <- kNN(Busanportdata, k=5)
+names(Busanportdata1)
+aggr(keydatavariables, plot = TRUE, bars = TRUE)
+```
+
+
+# **Data visualization**
+
+## **Univariate Graphs**
+
+We first plot the distribution of data for a single variable. This variable can either be categorical (port facilities, port functions or structure type) or quantitative variable (size of port, length of berth or costs). The bar chart below compares the frequency of categories, and we see: of the three classifications being made in the dataset, 2종 make up of 58 percent of port facilities.
+
+```{r}
+library(scales)
+
+plotclassification <- Busanportdata %>%
+  count(종별) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+
+
+항만공사종별 <- ggplot(plotclassification, 
+       aes(x = reorder(종별, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "종별", 
+       y = "Percent", 
+       title  = "항만공사 종별")+
+   theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=13, face="bold"),
+        axis.title.y = element_text(color="black", size=13, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 16, face = "bold"),
+    plot.subtitle = element_text(color = "blue", size = 14))
+
+항만공사종별
+
+#ggsave('항만공사종별.png',plot = 항만공사종별)
+```
+
+
+
+
+```{r}
+plotportfunction <- Busanportdata %>%
+  count(항만기능별) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+
+
+Portfacilitiesby항만기능별 <- ggplot(plotportfunction, 
+       aes(x = reorder(항만기능별, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "항만기능별", 
+       y = "Percent", 
+       title  = "항만시설 by 기능")+
+   theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=13, face="bold"),
+        axis.title.y = element_text(color="black", size=13, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 16, face = "bold"),
+    plot.subtitle = element_text(color = "blue", size = 14))
+
+Portfacilitiesby항만기능별
+
+ggsave('Portfacilitiesby항만기능별.png',plot = Portfacilitiesby항만기능별)
+```
+
+
+```{r}
+plotportinfrastructure <- Busanportdata %>%
+  count(시설별) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+
+
+Portfunctionsby시설별 <- ggplot(plotportinfrastructure, 
+       aes(x = reorder(시설별, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "시설별", 
+       y = "Percent", 
+       title  = "항만기능 by 시설")+
+   theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=13, face="bold"),
+        axis.title.y = element_text(color="black", size=13, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 16, face = "bold"),
+    plot.subtitle = element_text(color = "blue", size = 14))
+
+Portfunctionsby시설별
+
+ggsave('Portfunctionsby시설별.png',plot = Portfunctionsby시설별)
+```
+
+
+```{r}
+plotportberth <- Busanportdata %>%
+  count(선석) %>%
+  mutate(pct = n / sum(n),
+         pctlabel = paste0(round(pct*100), "%"))
+
+
+
+Berthcapacity <- ggplot(plotportberth, 
+       aes(x = reorder(선석, -pct),
+           y = pct)) + 
+  geom_bar(stat = "identity", 
+           fill = "indianred3", 
+           color = "black") +
+  geom_text(aes(label = pctlabel), 
+            vjust = -0.25) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "선석", 
+       y = "Percent", 
+       title  = "선석")+
+   theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=13, face="bold"),
+        axis.title.y = element_text(color="black", size=13, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 16, face = "bold"),
+    plot.subtitle = element_text(color = "blue", size = 14))
+
+Berthcapacity
+
+ggsave('Berthcapacity.png',plot = Berthcapacity)
+
+```
+
+
+
+Consider 안벽 by 구조형식
+
+```{r}
+
+library(ggsci)
+head(Busanportdata)
+
+안벽중력식 <- Busanportdata %>%
+  filter(구조형식 == "중력식" & 시설별 == "안벽")
+
+안벽잔교식 <- newbusanportdata %>%
+  filter(구조형식 == "잔교식" & 시설별 == "안벽")
+
+안벽잔교식중력식케이슨 <- newbusanportdata %>%
+  filter(구조형식 == "중력식(케이슨)" & 시설별 == "안벽")
+
+안벽설룰러블럭식 <- newbusanportdata %>%
+  filter(구조형식 == "중력식(셀룰러블럭식)" & 시설별 == "안벽")
+
+
+focus <- Busanportdata1 %>%
+  filter(시설별 == "안벽" & 구조형식 %in% c("중력식", "잔교식", 
+                           "중력식(케이슨)"))
+
+
+library(scales)
+
+ggplot(Busanportdata, 
+       aes(x = 시설별, 
+           fill = 구조형식)) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion")+
+ scale_fill_jco()
+
+
+
+decentexpodecay <- newbusanportdata %>% 
+  filter(시설별 == "안벽" & 구조형식 %in% c("중력식", "중력식(셀룰러블럭식)", "중력식(케이슨)"))
+```
+
+안벽 decay curve by 구조형식: Exponential decay or exponential growth 
+The exponential function is nonlinear in k and needs to be fitted by using ‘nls()’ or ‘drm()’
+
+```{r}
+#library(drc)
+library(nlme)
+library(aomisc)
+library(broom)
+
+
+head(Busanportdata)
+head(Busanportdata1)
+#view(Busanportdata1)
+
+decaycurve안벽중력식 <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = 안벽중력식)
+
+summary(decaycurve안벽중력식)
+
+plot(decaycurve안벽중력식, log="")
+
+
+
+
+
+
+
+decaycurve안벽설룰러블럭식 <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = 안벽설룰러블럭식)
+
+summary(decaycurve안벽설룰러블럭식)
+
+plot(decaycurve안벽설룰러블럭식, log="")
+
+
+
+
+
+
+decaycurve안벽잔교식중력식케이슨 <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = 안벽잔교식중력식케이슨)
+
+summary(decaycurve안벽설룰러블럭식)
+
+plot(decaycurve안벽설룰러블럭식, log="")
+
+
+###Data for all
+
+
+
+```
+
+
+More advanced algorithms for Decay curve
+
+
+```{r}
+library(ggpmisc)
+library(ggpubr)
+library(plotly)
+library(broom)
+library(sandwich)
+
+head(Busanportdata)
+#https://stackoverflow.com/questions/41189823/logarithmic-y-with-geom-smooth
+#https://biol607.github.io/lab/12_gzlm.html
+
+decentexpcurves <- lm(log(평균상태등급)~ 공용년수,data = Busanportdata1)
+summary(decentexpcurves)
+
+exponentialequation <- log (y) ~ x
+
+ ggplot(Busanportdata,aes(공용년수,평균상태등급))+geom_point(size = 3.5, color = "steelblue")+
+   geom_smooth(method="glm",
+              method.args=list(family=gaussian(link="log")), color = "indianred3")+
+   stat_poly_eq(aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+               label.x.npc = "center", label.y.npc = 0.9,
+               formula = exponentialequation, parse = TRUE, size = 5)
+ 
+ #+
+  annotate("text", x = 30, y = 85, label = "log(그룹별 노후도 평가점수) ~ 매설연수",
+           family = "serif", fontface = "italic", colour = "darkred", size = 5)+
+  labs(x = "매설연수",
+       y = "그룹별 노후도 평가점수", title = "강관 그룹별 노후도 평가점수 vs 매설연수")+
+  theme_minimal(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+
+steelgroupexp
+
+ggsave('steelgroupexp.png',plot = steelgroupexp)
+
+```
+
+```{r}
+
+#view(Busanportdata)
+
+평균상태등급versus연장 <- Busanportdata %>%
+  ggplot(aes(연장,평균상태등급)) +
+  geom_jitter(alpha = 0.7,
+              size = 1.5) + 
+  labs(title = "평균상태등급 versus 연장",
+       x = "연장(m)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus연장
+
+#ggsave('평균상태등급versus연장.png',plot = 평균상태등급versus연장)
+
+#with the trendline
+
+평균상태등급versus연장trend <- Busanportdata %>%
+  ggplot(aes(연장,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+ 
+  labs(title = "평균상태등급 versus 연장",
+       x = "연장(m)",
+       y = "평균상태등급")+
+  xlim(0,2000)+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+
+  
+평균상태등급versus연장trend
+
+
+#ggsave('평균상태등급versus연장trend.png',plot = 평균상태등급versus연장trend)
+
+
+
+평균상태등급versus수심 <- Busanportdata %>%
+  ggplot(aes(수심,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 수심",
+       x = "수심(m)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus수심
+
+#ggsave('평균상태등급versus수심.png',plot = 평균상태등급versus수심)
+
+
+#Add trendline
+
+평균상태등급versus수심trend <- Busanportdata %>%
+  ggplot(aes(수심,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 수심",
+       x = "수심(m)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus수심trend
+
+#ggsave('평균상태등급versus수심trend.png',plot = 평균상태등급versus수심trend)
+
+
+평균상태등급versus규모<- Busanportdata %>%
+  ggplot(aes(규모,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 규모",
+       x = "규모(톤)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+   scale_x_continuous(labels = comma)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus규모
+
+#ggsave('평균상태등급versus규모.png',plot = 평균상태등급versus규모)
+
+dim(Busanportdata)
+
+view(Busanportdata)
+
+
+Busanportdata1 %>%
+  filter(구조형식 == "중력식") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  xlim(0,50)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+Busanportdata1 %>%
+  filter(구조형식 == "중력식(셀룰러블럭식)") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+
+Busanportdata1 %>%
+  filter(구조형식 == "중력식(케이슨)") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+Busanportdata1 %>%
+  filter(구조형식 == "중력식(케이슨식)") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+
+Busanportdata1 %>%
+  filter(구조형식 == "중력식+잔교식") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+
+Busanportdata1 %>%
+  filter(구조형식 == "혼성제") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+Busanportdata1 %>%
+  filter(구조형식 == "케이슨식 혼성제") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+
+Busanportdata1 %>%
+  filter(구조형식 == "철구조") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+Busanportdata1 %>%
+  filter(시설별 == "안벽") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  xlim(0, 50)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)
+
+
+#평균상태등급versus공용년수 <- Busanportdata1 %>%
+  #ggplot(aes(공용년수,평균상태등급, color = 지역명)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1, se = FALSE)+
+  labs(title = "평균상태등급 versus 공용년수",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+     xlim(0,50)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+#평균상태등급versus공용년수
+
+ggsave('평균상태등급versus공용년수.png',plot = 평균상태등급versus공용년수)
+
+
+#안벽
+
+안벽trend <- Busanportdata1 %>%
+  filter(시설별 == "안벽") %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 공용년수 (안벽)",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+     xlim(0,50)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+안벽trend
+
+ggsave('안벽trend.png',plot = 안벽trend)
+
+
+#
+
+
+```
+
+
+
+
+
+
+
+```{r}
+rankbyportfunction <- Busanportdata1 %>%
+  ggplot(aes(수심,평균상태등급, color = 항만기능별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 수심 by 항만기능 ",
+       x = "수심(m)",
+       y = "평균상태등급",
+       color = "항만기능별")+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))+
+  scale_color_brewer(palette = "Set1")
+  
+rankbyportfunction
+
+#ggsave('rankbyportfunction.png',plot = rankbyportfunction)
+
+
+rankbyportfacility <- Busanportdata %>%
+  ggplot(aes(수심,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 수심 by 시설별",
+       x = "수심(m)",
+       y = "평균상태등급",
+       color = "시설별")+
+  theme_light(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))+
+  scale_color_brewer(palette = "Set1")
+  
+rankbyportfacility
+
+#ggsave('rankbyportfacility.png',plot = rankbyportfacility)
+
+```
+
+
+```{r}
+head(Busanportdata)
+sapply(Busanportdata, class)
+ranklengthbyportfunction <- Busanportdata %>%
+  ggplot(aes(연장,평균상태등급, color = 항만기능별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 연장 by 항만기능",
+       x = "연장(m)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  xlim(0,1700)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+ranklengthbyportfunction
+
+#ggsave('ranklengthbyportfunction.png',plot = ranklengthbyportfunction)
+
+
+ranklengthbyfacility <- Busanportdata %>%
+  ggplot(aes(연장,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 연장 by 시설",
+       x = "연장(m)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  xlim(0,2000)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+ranklengthbyfacility
+
+#ggsave('ranklengthbyfacility.png',plot = ranklengthbyfacility)
+
+
+```
+
+
+size 
+
+
+```{r}
+portsizebyportfunction <- Busanportdata1 %>%
+  ggplot(aes(규모,평균상태등급, color = 항만기능별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 규모 by 항만기능",
+       x = "규모(톤)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+   scale_x_continuous(labels = comma)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+portsizebyportfunction
+
+#ggsave('ranklengthbyportfunction.png',plot = ranklengthbyportfunction)
+
+
+portsizebyfacility <- Busanportdata %>%
+  ggplot(aes(규모,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 연장 by 시설",
+       x = "규모(톤)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+   scale_x_continuous(labels = comma)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+portsizebyfacility
+
+#ggsave('ranklengthbyfacility.png',plot = ranklengthbyfacility)
+
+```
+
+Age
+
+```{r}
+head(Busanportdata)
+agebyportfunction <- Busanportdata %>%
+  ggplot(aes(공용년수,평균상태등급, color = 항만기능별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 공용년수 by 항만기능",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  xlim(0,60)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+agebyportfunction
+
+#ggsave('agebyportfunction.png',plot = agebyportfunction)
+
+
+portagebyfacility <- Busanportdata %>%
+  ggplot(aes(공용년수,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 공용년수 by 시설",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  xlim(0,50)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+portagebyfacility
+
+#ggsave('portagebyfacility.png',plot = portagebyfacility)
+```
+
+
+
+Regression models
+
+The “neutral” line, i.e. the vertical intercept that indicates no effect (x-axis position 1 for most glm’s and position 0 for most linear models), is drawn slightly thicker than the other grid lines.
+
+
+```{r}
+#devtools::install_github("strengejacke/strengejacke")
+#install.packages("effects")
+#install.packages("stargazer")
+library(stargazer)
+library(sjPlot)
+library(sjmisc)
+library(effectsize)
+library(effects)
+library(jtools)
+head(Busanportdata)
+theme_set(theme_sjplot())
+
+
+sapply(Busanportdata, class)
+view(Busanportdata)
+
+mainmodel <- lm(평균상태등급 ~ 수심+ 연장 + 공용년수+ 규모 + 시설별, data = Busanportdata)
+mainmodel1 <- plot_model(mainmodel, show.values = TRUE, value.offset = .3)
+mainmodel1
+#ggsave('mainmodel1.png',plot = mainmodel1)
+stargazer(mainmodel,type='text')
+stargazer(mainmodel,type='html',out="mainmodel.html")
+
+#--------------------Interpret significant zero coefficient--------------------------------
+#Large dataset means small effects become highly significant
+#The word 'significant' has a different meaning in statistics than in everyday English. With n=65000 the slightest imaginable effect becomes statistically significant, no matter how irrelevant it may be. The statistical finding is probably sound, still it may be irrelevant if you consider the coefficient to small.
+#I agree with some of the above comments about rescaling (normalizing/standardizing) and see if your results differ and become more interpretable to you then.
+
+
+summ(mainmodel, scale = TRUE, vifs = TRUE, part.corr = TRUE, confint = TRUE, pvals = FALSE)
+
+
+
+mainmode2 <- lm(평균상태등급 ~ 수심+ 연장 + 공용년수+ 규모 + 시설별, data = Busanportdata1)
+mainmodel2_a <- plot_model(mainmode2, show.values = TRUE, value.offset = .3)
+mainmodel2_a
+ggsave('mainmodel2_a.png',plot = mainmodel2_a)
+stargazer(mainmodel,type='text')
+stargazer(mainmodel,type='html',out="mainmodel.html")
+
+
+averageconditionlevel <- lm(평균상태등급 ~ 공용년수+ 규모 + 시설별, data = Busanportdata1)
+mainmodel2_b <- plot_model(averageconditionlevel, show.values = TRUE, value.offset = .3)
+mainmodel2_b
+ggsave('mainmodel2_b.png',plot = mainmodel2_b)
+stargazer(averageconditionlevel,type='text')
+stargazer(averageconditionlevel,type='html',out="averageconditionlevel.html")
+
+
+finalmodel <- lm(평균상태등급 ~ 공용년수+ 규모 + 시설별, data = Busanportdata)
+finalmodel1 <- plot_model(finalmodel, show.values = TRUE, value.offset = .3)
+finalmodel1
+#ggsave('finalmodel1.png',plot = finalmodel1)
+stargazer(finalmodel,type='text')
+stargazer(finalmodel,type='html',out="finalmodel.html")
+
+
+
+```
+
+Scatter analysis after handling missing data
+
+
+```{r}
+평균상태등급versus규모first <- Busanportdata1 %>%
+  ggplot(aes(규모,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 규모",
+       x = "규모(톤)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+   scale_x_continuous(labels = comma)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus규모first
+
+#ggsave('평균상태등급versus규모first.png',plot = 평균상태등급versus규모first)
+
+
+평균상태등급versus공용년수second <- Busanportdata1 %>%
+  ggplot(aes(공용년수,평균상태등급)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 공용년수",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+     xlim(0,50)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+평균상태등급versus공용년수second
+
+#ggsave('평균상태등급versus공용년수.png',plot = 평균상태등급versus공용년수)
+
+```
+
+
+Understanding size and age by port function and port facility after handling missing data
+
+
+```{r}
+portsizebyfacilityfirst <- Busanportdata1 %>%
+  ggplot(aes(규모,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 연장 by 시설",
+       x = "규모(톤)",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+   scale_x_continuous(labels = comma)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+portsizebyfacilityfirst
+
+
+portagebyfacilitysecond <- Busanportdata1 %>%
+  ggplot(aes(공용년수,평균상태등급, color = 시설별)) +
+  geom_point(size = 3, alpha = 0.6)+
+  stat_smooth(method = "loess", formula = y ~ x, size = 1)+
+  labs(title = "평균상태등급 versus 공용년수 by 시설",
+       x = "공용년수",
+       y = "평균상태등급")+
+  theme_light(base_size = 14)+
+  xlim(0,50)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+  
+portagebyfacilitysecond
+
+#ggsave('portagebyfacilitysecond.png',plot = portagebyfacilitysecond)
+
+
+```
+
+
+
+Decay curve
+
+
+
+https://www.statforbiology.com/nonlinearregression/usefulequations
+
+https://douglas-watson.github.io/post/2018-09_exponential_curve_fitting/
+
+
+```{r}
+#library(devtools)
+#install_github("onofriandreapg/aomisc")
+#https://stats.stackexchange.com/questions/318971/fitting-exponential-decay-with-negative-y-values
+library(drc)
+library(nlme)
+library(aomisc)
+library(broom)
+
+
+head(Busanportdata)
+head(Busanportdata1)
+#view(Busanportdata1)
+
+decaycurve <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = Busanportdata1)
+
+summary(decaycurve)
+
+plot(decaycurve, log="")
+
+```
+
+```{r}
+#-----More advanced stuff----------------------
+
+focus <- Busanportdata1 %>%
+  filter(구조형식 %in% c("중력식", "잔교식", 
+                           "중력식(케이슨)"))
+
+qplot(공용년수, 평균상태등급, data = Busanportdata1, colour = 구조형식)
+
+ggplot(Busanportdata, aes(x = 공용년수, y = 평균상태등급)) + 
+  geom_point() +
+  stat_smooth(method = "nls", formula = y ~ SSasymp(x, Asym, R0, lrc), se = FALSE)
+
+
+```
+
+```{r}
+#안벽decaycurve
+
+
+안벽decaycurve <- Busanportdata %>%
+  filter(구조형식 == "중력식" & 시설별 == "안벽")
+
+quaywallmodel <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = 안벽decaycurve)
+
+summary(quaywallmodel)
+plot(quaywallmodel, log="")
+
+```
+
+```{r}
+안벽decaycurve1 <- Busanportdata %>%
+  filter(구조형식 == "잔교식" & 시설별 == "안벽")
+
+quaywallmodel1 <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = 안벽decaycurve1)
+
+summary(quaywallmodel1)
+plot(quaywallmodel1, log="")
+
+```
+
+
+```{r}
+
+# Using SSasymp
+
+#The solution is to use a self-starting function, a special function for curve fitting that guesses its own start parameters
+
+
+
+
+```
+
+How to fit and plot enponential decay function using ggplot2 and linear approximation 
+#https://stackoverflow.com/questions/19453861/how-to-fit-and-plot-exponential-decay-function-using-ggplot2-and-linear-approxim
+
+```{r}
+library(ggpmisc)
+library(ggpubr)
+library(plotly)
+library(stats)
+library(car)
+library(gamlss)
+
+
+
+
+decaycurve <- drm(평균상태등급 ~ 공용년수, fct = DRC.expoDecay(),
+             data = Busanportdata)
+
+exponentialdecay <- lm(log(평균상태등급)~ 공용년수,data = Busanportdata1)
+summary(exponentialdecay)
+
+exponentialequation <- log (y) ~ x
+
+ggplot(Busanportdata,aes(공용년수,평균상태등급))+geom_point(size = 3.5, color = "steelblue")+
+  geom_smooth(method="glm",
+              method.args=list(family=gaussian(link="log")), color = "indianred3")+
+  stat_poly_eq(aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+               label.x.npc = "center", label.y.npc = 0.9,
+               formula = exponentialequation, parse = TRUE, size = 5)+
+  annotate("text", x = 30, y = 85, label = "log(그룹별 노후도 평가점수) ~ 매설연수",
+           family = "serif", fontface = "bold", colour = "darkred", size = 5)+
+  labs(x = "매설연수",
+       y = "그룹별 노후도 평가점수", title = "CML-DIP 그룹별 노후도 평가점수 vs 매설연수")+
+  theme_minimal(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+
+dcipgroupexp
+
+
+ggsave('dcipgroupexp.png',plot = dcipgroupexp)
+
+
+
+
+##------Rewriting the exponential equation 
+
+parkdcipgroupexp <- ggplot(dcippipenetwork,aes(Usagelife,Groupscore))+geom_point(size = 3.5, color = "steelblue")+
+  geom_smooth(method="glm",
+              method.args=list(family=gaussian(link="log")), color = "indianred3")+
+  annotate("text", x = 30, y = 85, label = "y = exp (4.48 - 0.0225x)",
+           family = "serif", fontface = "bold", colour = "darkred", size = 5)+
+  labs(x = "매설연수",
+       y = "그룹별 노후도 평가점수", title = "CML-DIP 그룹별 노후도 평가점수 vs 매설연수")+
+  theme_minimal(base_size = 14)+
+  theme(axis.text.x = element_text(colour = "black", size = 13,face="bold"), 
+        axis.text.y = element_text(colour = "black", size = 13,face="bold"))+
+  theme(axis.title.x = element_text(color="black", size=15, face="bold"),
+        axis.title.y = element_text(color="black", size=15, face="bold"))+
+  theme(
+    plot.title = element_text(color = "Black", size = 20, face = "bold"))
+
+parkdcipgroupexp
+
+ggsave('parkdcipgroupexp.png',plot = parkdcipgroupexp)
+
+```
+
+```{r}
+Busanportdata%>%
+  ggplot(aes(규모, 연장)) +
+  geom_point() +
+  geom_abline(color = "red") +
+  facet_wrap(~ 항만기능별, scales = "free") +
+  expand_limits(x = 0, y = 0) +
+  labs(x = "규모 (톤)",
+       y = "연장 (m)",
+       title = "How does 항만기능 differ between 규모 + 연장?")
+```
